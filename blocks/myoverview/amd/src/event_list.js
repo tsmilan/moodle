@@ -352,13 +352,19 @@ define(['jquery', 'core/notification', 'core/templates',
 
         // Request data from the server.
         return promise.then(function(result) {
-            if (!result.events.length) {
+            var calendarEvents = [];
+            if (result.events.length > 0) {
+                calendarEvents = result.events.filter(function(event) {
+                    // Do not include events that does not have a due date.
+                    return event.eventtype != "open" && event.eventtype != "opensubmission";
+                });
+            }
+
+            if (!calendarEvents.length) {
                 // No events, nothing to do.
                 setLoadedAll(root);
                 return 0;
             }
-
-            var calendarEvents = result.events;
 
             // Remember the last id we've seen.
             root.attr('data-last-id', calendarEvents[calendarEvents.length - 1].id);
