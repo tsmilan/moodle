@@ -467,4 +467,96 @@ class backup_step_testcase extends advanced_testcase {
             $this->assertEquals($e->errorcode, 'wrong_backup_task_specified');
         }
     }
+
+    /**
+     * Data provider for test_get_dst_date_offset().
+     *
+     * @return array
+     */
+    public function get_dst_date_offset_provider() : array {
+        return [
+            // Start: Mar 25, 2019 12 AM DST, Relative: Apr 5, 2019 11 PM DST.
+            ['Australia/Sydney', '1553432400', '1554465600', 0],
+            // Start: Sep 30, 2019 12 AM Standard time, Relative: Oct 1, 2019 11 PM Standard time.
+            ['Australia/Sydney', '1569765600', '1569967200', 0],
+            // Start: Mar 25, 2019 12 AM DST, Relative: Apr 7, 2019 11 PM Standard time.
+            ['Australia/Sydney', '1553432400', '1554642000', 3600],
+            // Start: Sep 30, 2019 12 AM Standard time, Relative: Oct 12, 2019 11 PM DST.
+            ['Australia/Sydney', '1569765600', '1570881600', -3600],
+            // Start: Mar 25, 2019 12 AM Standard time, Relative: Mar 28, 2019 11 PM Standard time.
+            ['Europe/London', '1553472000', '1553814000', 0],
+            // Start: Sep 30, 2019 12 AM DST, Relative: Oct 12, 2019 11 PM DST.
+            ['Europe/London', '1569798000', '1570917600', 0],
+            // Start: Sep 30, 2019 12 AM DST, Relative: Oct 28 2019, 11 PM Standard time.
+            ['Europe/London', '1569798000', '1572303600', 3600],
+            // Start: Mar 25, 2019 12 AM Standard time, Relative: Apr 7, 2019 11 PM DST.
+            ['Europe/London', '1553472000', '1554674400', -3600],
+            // No dates provided.
+            ['Australia/Sydney', '', '', 0]
+        ];
+    }
+
+    /**
+     * Test get_dst_date_offset works as expected.
+     *
+     * @dataProvider get_dst_date_offset_provider
+     * @param string $timezone Server Timezone.
+     * @param string $startdate Start date.
+     * @param string $relativedate Relative date.
+     * @param int $expected Expected value.
+     */
+    public function test_get_dst_date_offset($timezone, $startdate, $relativedate, $expected) {
+        global $CFG;
+
+        // Create mocked task, step and element.
+        $bt = new mock_restore_task_basepath('taskname');
+        $bs = new mock_restore_structure_step('steptest', null, $bt);
+        $this->assertTrue(method_exists($bs, 'get_dst_date_offset'));
+
+        $CFG->timezone = $timezone;
+        $offset = $bs->get_dst_date_offset($startdate, $relativedate);
+
+        $this->assertEquals($expected, $offset);
+    }
+
+    /**
+     * Data provider for test_apply_dst_date_offset().
+     *
+     * @return array
+     */
+    public function apply_dst_date_offset() : array {
+        return [
+            // Value: Apr 5, 2019 11 PM DST, Expected: May 24, 2019 11 PM ST.
+            ['Australia/Sydney', '1554465600', '4233600', '1558702800'],
+            // Value: Apr 12, 2019 11 PM Standard time, Expected: May 31, 2019 11 PM Standard time.
+            ['Australia/Sydney', '1555074000', '4233600', '1559307600'],
+            // Value: Mar 15, 2019 11 PM DST, Expected: Apr 5, 2019 11 PM DST.
+            ['Australia/Sydney', '1552651200', '1814400', '1554465600'],
+            // Value: Sep 20, 2019 11 PM Standard time, Expected: Oct 18, 2019 11 PM DST.
+            ['Australia/Sydney', '1568984400', '2419200', '1571400000'],
+        ];
+    }
+
+    /**
+     * Test apply_dst_date_offset works as expected.
+     *
+     * @dataProvider apply_dst_date_offset
+     * @param string $timezone Server Timezone.
+     * @param int|string $value Time value (seconds since epoch).
+     * @param string $offset Date offset.
+     * @param int $expected Expected value.
+     */
+    public function test_apply_dst_date_offset($timezone, $value, $offset, $expected) {
+        global $CFG;
+
+        // Create mocked task, step and element.
+        $bt = new mock_restore_task_basepath('taskname');
+        $bs = new mock_restore_structure_step('steptest', null, $bt);
+        $this->assertTrue(method_exists($bs, 'apply_dst_date_offset'));
+
+        $CFG->timezone = $timezone;
+
+        $restoredvalue = $bs->apply_dst_date_offset($value, $offset);
+        $this->assertEquals($expected, $restoredvalue);
+    }
 }
