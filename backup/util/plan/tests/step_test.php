@@ -513,8 +513,12 @@ class backup_step_testcase extends advanced_testcase {
         $bs = new mock_restore_structure_step('steptest', null, $bt);
         $this->assertTrue(method_exists($bs, 'get_dst_date_offset'));
 
+        $rc = new ReflectionClass(restore_step::class);
+        $rcm = $rc->getMethod('get_dst_date_offset');
+        $rcm->setAccessible(true);
+
         $CFG->timezone = $timezone;
-        $offset = $bs->get_dst_date_offset($startdate, $relativedate);
+        $offset = $rcm->invoke($bs, $startdate, $relativedate);
 
         $this->assertEquals($expected, $offset);
     }
@@ -524,7 +528,7 @@ class backup_step_testcase extends advanced_testcase {
      *
      * @return array
      */
-    public function apply_dst_date_offset() : array {
+    public function apply_dst_date_offset_provider() : array {
         return [
             // Value: Apr 5, 2019 11 PM DST, Expected: May 24, 2019 11 PM ST.
             ['Australia/Sydney', '1554465600', '4233600', '1558702800'],
@@ -540,7 +544,7 @@ class backup_step_testcase extends advanced_testcase {
     /**
      * Test apply_dst_date_offset works as expected.
      *
-     * @dataProvider apply_dst_date_offset
+     * @dataProvider apply_dst_date_offset_provider
      * @param string $timezone Server Timezone.
      * @param int|string $value Time value (seconds since epoch).
      * @param string $offset Date offset.
@@ -552,11 +556,15 @@ class backup_step_testcase extends advanced_testcase {
         // Create mocked task, step and element.
         $bt = new mock_restore_task_basepath('taskname');
         $bs = new mock_restore_structure_step('steptest', null, $bt);
+
         $this->assertTrue(method_exists($bs, 'apply_dst_date_offset'));
 
-        $CFG->timezone = $timezone;
+        $rc = new ReflectionClass(restore_step::class);
+        $rcm = $rc->getMethod('apply_dst_date_offset');
+        $rcm->setAccessible(true);
 
-        $restoredvalue = $bs->apply_dst_date_offset($value, $offset);
+        $CFG->timezone = $timezone;
+        $restoredvalue = $rcm->invoke($bs, $value, $offset);
         $this->assertEquals($expected, $restoredvalue);
     }
 }

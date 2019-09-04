@@ -100,7 +100,7 @@ abstract class restore_step extends base_step {
      * @param int $offset Cached offset.
      * @return int
      */
-    public function apply_dst_date_offset($value, $offset) {
+    private function apply_dst_date_offset($value, $offset) {
         $newvalue = $value + $offset;
         // Get the DST date offset between the value and the relative date.
         $valueoffset = $this->get_dst_date_offset($value, $newvalue);
@@ -120,7 +120,7 @@ abstract class restore_step extends base_step {
      * @param int|string $relativedate Relative date (seconds since epoch).
      * @return int
      */
-    public function get_dst_date_offset($startdate, $relativedate) {
+    private function get_dst_date_offset($startdate, $relativedate) {
         if (empty($startdate) || empty($relativedate)) {
             // Start date or relative date doesn't exist, Offset = 0.
             return 0;
