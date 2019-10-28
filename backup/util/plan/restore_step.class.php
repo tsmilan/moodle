@@ -66,7 +66,7 @@ abstract class restore_step extends base_step {
         static $cache = array();
         // Lookup cache.
         if (isset($cache[$this->get_restoreid()])) {
-            return $value + $cache[$this->get_restoreid()];
+            return $this->apply_dst_date_offset($value, $cache[$this->get_restoreid()]);
         }
         // No cache, let's calculate the offset.
         $original = $this->task->get_info()->original_course_startdate;
@@ -86,11 +86,51 @@ abstract class restore_step extends base_step {
 
         } else {
             // Arrived here, let's calculate the real offset.
-            $cache[$this->get_restoreid()] = $setting - $original;
+            $cache[$this->get_restoreid()] = $this->get_dst_date_offset($setting, $original) + ($setting - $original);
         }
 
         // Return the passed value with cached offset applied.
-        return $value + $cache[$this->get_restoreid()];
+        return $this->apply_dst_date_offset($value, $cache[$this->get_restoreid()]);
+    }
+
+    /**
+     * Returns the passed value with cached offset and DST offset applied.
+     *
+     * @param int|string $value Time value (seconds since epoch), or empty for nothing.
+     * @param int $offset Cached offset.
+     * @return int
+     */
+    private function apply_dst_date_offset($value, $offset) {
+        $newvalue = $value + $offset;
+        // Get the DST date offset between the value and the relative date.
+        $valueoffset = $this->get_dst_date_offset($value, $newvalue);
+        return $newvalue + $valueoffset;
+    }
+
+    /**
+     * Returns DST offset between the given dates.
+     *
+     * This method is used to calculate the offset for the given dates
+     * to prevent adding/subtracting DST offset (e.g 1 hour) when restoring
+     * from a course backup.
+     *
+     * See MDL-66168.
+     *
+     * @param int|string $startdate Start date (seconds since epoch).
+     * @param int|string $relativedate Relative date (seconds since epoch).
+     * @return int
+     */
+    private function get_dst_date_offset($startdate, $relativedate) {
+        if (empty($startdate) || empty($relativedate)) {
+            // Start date or relative date doesn't exist, Offset = 0.
+            return 0;
+        }
+
+        $tz = new DateTimeZone(core_date::get_server_timezone());
+        $startdateoffset = dst_offset_on($startdate, $tz);
+        $relativedateoffset = dst_offset_on($relativedate, $tz);
+
+        return $startdateoffset - $relativedateoffset;
     }
 
     /**
