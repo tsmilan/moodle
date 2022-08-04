@@ -26,6 +26,8 @@ namespace core\session;
 
 defined('MOODLE_INTERNAL') || die();
 
+use core\session\util\session_store_interface;
+
 /**
  * Session handler base.
  *
@@ -33,7 +35,7 @@ defined('MOODLE_INTERNAL') || die();
  * @copyright  2013 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-abstract class handler {
+abstract class handler implements session_store_interface {
     /** @var boolean $requireswritelock does the session need and/or have a lock? */
     protected $requireswritelock = false;
 

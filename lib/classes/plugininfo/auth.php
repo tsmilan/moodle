@@ -158,6 +158,7 @@ class auth extends base {
             $value = implode(',', $auths);
             add_to_config_log('auth', $CFG->auth, $value, 'core');
             set_config('auth', $value);
+            \core\session\manager::kill_sessions_for_auth_plugin($this->name);
         }
 
         if (!empty($CFG->registerauth) and $CFG->registerauth === $this->name) {

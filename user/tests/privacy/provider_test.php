@@ -475,7 +475,8 @@ class provider_test extends provider_testcase {
             'firstip' => '0.0.0.0',
             'lastip' => '0.0.0.0'
         ];
-        $DB->insert_record('sessions', $usersessions);
+        $mockhandler = new \core\session\util\mock_handler_methods();
+        $mockhandler->add_test_session($usersessions);
     }
 
     /**

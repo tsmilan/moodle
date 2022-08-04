@@ -282,6 +282,8 @@ class session_redis_test extends \advanced_testcase {
         $sess = new \core\session\redis();
         $sess->init();
 
+        $mockhandler = new \core\session\util\mock_handler_methods();
+
         $this->assertTrue($sess->handler_open('Not used', 'Not used'));
         $this->assertTrue($sess->handler_write('sess1', 'DATA'));
         $this->assertTrue($sess->handler_write('sess2', 'DATA'));
@@ -293,11 +295,11 @@ class session_redis_test extends \advanced_testcase {
         $sessiondata->timemodified = time();
 
         $sessiondata->sid = 'sess1';
-        $DB->insert_record('sessions', $sessiondata);
+        $mockhandler->add_test_session($sessiondata);
         $sessiondata->sid = 'sess2';
-        $DB->insert_record('sessions', $sessiondata);
+        $mockhandler->add_test_session($sessiondata);
         $sessiondata->sid = 'sess3';
-        $DB->insert_record('sessions', $sessiondata);
+        $mockhandler->add_test_session($sessiondata);
 
         $this->assertNotEquals('', $sess->handler_read('sess1'));
         $sess->kill_session('sess1');
@@ -307,7 +309,9 @@ class session_redis_test extends \advanced_testcase {
 
         $sess->kill_all_sessions();
 
-        $this->assertEquals(3, $DB->count_records('sessions'), 'Moodle handles session database, plugin must not change it.');
+        $mockhandler = new \core\session\util\mock_handler_methods();
+        $this->assertEquals(3, $mockhandler->count_sessions(),
+            'Moodle handles session database, plugin must not change it.');
         $this->assertSessionNoLocks();
         $this->assertEmpty($this->redis->keys($this->keyprefix.'*'), 'There should be no session data left.');
     }

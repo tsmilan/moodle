@@ -268,6 +268,9 @@ class manager {
         // Find out which handler to use.
         $class = self::get_handler_class();
         self::$handler = new $class();
+        if (!self::$handler instanceof \core\session\util\session_store_interface) {
+            throw new exception("$class must implement the \core\session\util\session_store_interface");
+        }
     }
 
     /**
@@ -424,7 +427,7 @@ class manager {
             return;
         }
 
-        if (!$record = $DB->get_record('sessions', array('sid'=>$sid), 'id, sid, state, userid, lastip, timecreated, timemodified')) {
+        if (!$record = self::get_session_by_sid($sid)) {
             if (!$newsid) {
                 if (!empty($_SESSION['USER']->id)) {
                     // This should not happen, just log it, we MUST not produce any output here!
@@ -469,8 +472,7 @@ class manager {
                 }
                 session_regenerate_id(true);
                 $_SESSION = array();
-                $DB->delete_records('sessions', array('id'=>$record->id));
-
+                self::delete_session_by_sid($record->sid);
             } else {
                 // Update session tracking record.
 
@@ -503,7 +505,7 @@ class manager {
 
                 if ($updated && (!defined('NO_SESSION_UPDATE') || !NO_SESSION_UPDATE)) {
                     $update->id = $record->id;
-                    $DB->update_record('sessions', $update);
+                    self::$handler->update_session($update);
                 }
 
                 return;
@@ -513,7 +515,7 @@ class manager {
                 // This happens when people switch session handlers...
                 session_regenerate_id(true);
                 $_SESSION = array();
-                $DB->delete_records('sessions', array('id'=>$record->id));
+                self::delete_session_by_sid($record->sid);
             }
         }
         unset($record);
@@ -546,10 +548,10 @@ class manager {
         // Setup $USER and insert the session tracking record.
         if ($user) {
             self::set_user($user);
-            self::add_session_record($user->id);
+            self::add_session($user->id);
         } else {
             self::init_empty_session($newsid);
-            self::add_session_record(0);
+            self::add_session(0);
         }
 
         if ($timedout) {
@@ -558,23 +560,62 @@ class manager {
     }
 
     /**
+     * Returns a single session record for this session id.
+     *
+     * @param string $sid
+     * @return \stdClass
+     */
+    public static function get_session_by_sid($sid) {
+        return self::$handler->get_session_by_sid($sid);
+    }
+
+    /**
+     * Returns all the session records for this user id.
+     *
+     * @param int $userid
+     * @return array
+     */
+    public static function get_sessions_by_userid($userid) {
+        return self::$handler->get_sessions_by_userid($userid);
+    }
+
+    /**
      * Insert new empty session record.
+     *
      * @param int $userid
      * @return \stdClass the new record
      */
-    protected static function add_session_record($userid) {
-        global $DB;
-        $record = new \stdClass();
-        $record->state       = 0;
-        $record->sid         = session_id();
-        $record->sessdata    = null;
-        $record->userid      = $userid;
-        $record->timecreated = $record->timemodified = time();
-        $record->firstip     = $record->lastip = getremoteaddr();
+    public static function add_session($userid) {
+        return self::$handler->add_session($userid);
+    }
 
-        $record->id = $DB->insert_record('sessions', $record);
+    /**
+     * Update a session record.
+     *
+     * @param \stdClass $record
+     * @return bool
+     */
+    public static function update_session($record) {
+        return self::$handler->update_session($record);
+    }
 
-        return $record;
+    /**
+     * Delete all the session data.
+     *
+     * @return bool
+     */
+    public static function delete_all_sessions() {
+        return self::$handler->delete_all_sessions();
+    }
+
+    /**
+     * Delete a session record for this session id.
+     *
+     * @param string $sid
+     * @return bool
+     */
+    public static function delete_session_by_sid($sid) {
+        return self::$handler->delete_session_by_sid($sid);
     }
 
     /**
@@ -614,8 +655,8 @@ class manager {
 
         $sid = session_id();
         session_regenerate_id(true);
-        $DB->delete_records('sessions', array('sid'=>$sid));
-        self::add_session_record($user->id);
+        self::delete_session_by_sid($sid);
+        self::add_session($user->id);
 
         // Let enrol plugins deal with new enrolments if necessary.
         enrol_check_plugins($user);
@@ -674,9 +715,9 @@ class manager {
         // Write new empty session and make sure the old one is deleted.
         $sid = session_id();
         session_regenerate_id(true);
-        $DB->delete_records('sessions', array('sid'=>$sid));
+        self::delete_session_by_sid($sid);
         self::init_empty_session();
-        self::add_session_record($_SESSION['USER']->id); // Do not use $USER here because it may not be set up yet.
+        self::add_session($_SESSION['USER']->id); // Do not use $USER here because it may not be set up yet.
         self::write_close();
     }
 
@@ -758,7 +799,7 @@ class manager {
         }
 
         // Note: add sessions->state checking here if it gets implemented.
-        if (!$record = $DB->get_record('sessions', array('sid' => $sid), 'id, userid, timemodified')) {
+        if (!$record = self::get_session_by_sid($sid)) {
             return false;
         }
 
@@ -786,7 +827,7 @@ class manager {
         }
 
         // Note: add sessions->state checking here if it gets implemented.
-        if (!$record = $DB->get_record('sessions', array('sid' => $sid), 'id, userid, timemodified')) {
+        if (!$record = self::get_session_by_sid($sid)) {
             return ['userid' => 0, 'timeremaining' => $CFG->sessiontimeout];
         }
 
@@ -803,12 +844,11 @@ class manager {
      * @param string $sid
      */
     public static function touch_session($sid) {
-        global $DB;
-
         // Timeouts depend on core sessions table only, no need to update anything in external stores.
-
-        $sql = "UPDATE {sessions} SET timemodified = :now WHERE sid = :sid";
-        $DB->execute($sql, array('now'=>time(), 'sid'=>$sid));
+        $record = new \stdClass();
+        $record->sid = $sid;
+        $record->timemodified = time();
+        self::$handler->update_session($record);
     }
 
     /**
@@ -823,8 +863,8 @@ class manager {
         self::$handler->kill_all_sessions();
 
         try {
-            $DB->delete_records('sessions');
-        } catch (\dml_exception $ignored) {
+            self::delete_all_sessions();
+        } catch (\moodle_exception $ignored) {
             // Do not show any warnings - might be during upgrade/installation.
         }
     }
@@ -843,8 +883,7 @@ class manager {
         }
 
         self::$handler->kill_session($sid);
-
-        $DB->delete_records('sessions', array('sid'=>$sid));
+        self::delete_session_by_sid($sid);
     }
 
     /**
@@ -855,7 +894,7 @@ class manager {
     public static function kill_user_sessions($userid, $keepsid = null) {
         global $DB;
 
-        $sessions = $DB->get_records('sessions', array('userid'=>$userid), 'id DESC', 'id, sid');
+        $sessions = self::get_sessions_by_userid($userid);
         foreach ($sessions as $session) {
             if ($keepsid and $keepsid === $session->sid) {
                 continue;
@@ -893,24 +932,29 @@ class manager {
             return;
         }
 
-        $count = $DB->count_records('sessions', array('userid' => $userid));
+        $sessions = self::get_sessions_by_userid($userid);
+
+        $count = count($sessions);
 
         if ($count <= $CFG->limitconcurrentlogins) {
             return;
         }
 
         $i = 0;
-        $select = "userid = :userid";
-        $params = array('userid' => $userid);
         if ($sid) {
-            if ($DB->record_exists('sessions', array('sid' => $sid, 'userid' => $userid))) {
-                $select .= " AND sid <> :sid";
-                $params['sid'] = $sid;
-                $i = 1;
+            foreach ($sessions as $key => $session) {
+                if ($session->sid == $sid && $session->userid == $userid) {
+                    $i = 1;
+                    unset($sessions[$key]);
+                }
             }
         }
 
-        $sessions = $DB->get_records_select('sessions', $select, $params, 'timecreated DESC', 'id, sid');
+        // Order records by timecreated DESC
+        usort($sessions, function($a, $b){
+            return $a->timecreated < $b->timecreated;
+        });
+
         foreach ($sessions as $session) {
             $i++;
             if ($i <= $CFG->limitconcurrentlogins) {
@@ -949,87 +993,20 @@ class manager {
     }
 
     /**
+     * Kill sessions of users with disabled plugins
+     *
+     * @param string $pluginname
+     * @return void
+     */
+    public static function kill_sessions_for_auth_plugin($pluginname) {
+        self::$handler->kill_sessions_for_auth_plugin($pluginname);
+    }
+
+    /**
      * Periodic timed-out session cleanup.
      */
     public static function gc() {
-        global $CFG, $DB;
-
-        // This may take a long time...
-        \core_php_time_limit::raise();
-
-        $maxlifetime = $CFG->sessiontimeout;
-
-        try {
-            // Kill all sessions of deleted and suspended users without any hesitation.
-            $rs = $DB->get_recordset_select('sessions', "userid IN (SELECT id FROM {user} WHERE deleted <> 0 OR suspended <> 0)", array(), 'id DESC', 'id, sid');
-            foreach ($rs as $session) {
-                self::kill_session($session->sid);
-            }
-            $rs->close();
-
-            // Kill sessions of users with disabled plugins.
-            $authsequence = get_enabled_auth_plugins();
-            $authsequence = array_flip($authsequence);
-            unset($authsequence['nologin']); // No login means user cannot login.
-            $authsequence = array_flip($authsequence);
-
-            list($notplugins, $params) = $DB->get_in_or_equal($authsequence, SQL_PARAMS_QM, '', false);
-            $rs = $DB->get_recordset_select('sessions', "userid IN (SELECT id FROM {user} WHERE auth $notplugins)", $params, 'id DESC', 'id, sid');
-            foreach ($rs as $session) {
-                self::kill_session($session->sid);
-            }
-            $rs->close();
-
-            // Now get a list of time-out candidates - real users only.
-            $sql = "SELECT u.*, s.sid, s.timecreated AS s_timecreated, s.timemodified AS s_timemodified
-                      FROM {user} u
-                      JOIN {sessions} s ON s.userid = u.id
-                     WHERE s.timemodified < :purgebefore AND u.id <> :guestid";
-            $params = array('purgebefore' => (time() - $maxlifetime), 'guestid'=>$CFG->siteguest);
-
-            $authplugins = array();
-            foreach ($authsequence as $authname) {
-                $authplugins[$authname] = get_auth_plugin($authname);
-            }
-            $rs = $DB->get_recordset_sql($sql, $params);
-            foreach ($rs as $user) {
-                foreach ($authplugins as $authplugin) {
-                    /** @var \auth_plugin_base $authplugin*/
-                    if ($authplugin->ignore_timeout_hook($user, $user->sid, $user->s_timecreated, $user->s_timemodified)) {
-                        continue 2;
-                    }
-                }
-                self::kill_session($user->sid);
-            }
-            $rs->close();
-
-            // Delete expired sessions for guest user account, give them larger timeout, there is no security risk here.
-            $params = array('purgebefore' => (time() - ($maxlifetime * 5)), 'guestid'=>$CFG->siteguest);
-            $rs = $DB->get_recordset_select('sessions', 'userid = :guestid AND timemodified < :purgebefore', $params, 'id DESC', 'id, sid');
-            foreach ($rs as $session) {
-                self::kill_session($session->sid);
-            }
-            $rs->close();
-
-            // Delete expired sessions for userid = 0 (not logged in), better kill them asap to release memory.
-            $params = array('purgebefore' => (time() - $maxlifetime));
-            $rs = $DB->get_recordset_select('sessions', 'userid = 0 AND timemodified < :purgebefore', $params, 'id DESC', 'id, sid');
-            foreach ($rs as $session) {
-                self::kill_session($session->sid);
-            }
-            $rs->close();
-
-            // Cleanup letfovers from the first browser access because it may set multiple cookies and then use only one.
-            $params = array('purgebefore' => (time() - 60*3));
-            $rs = $DB->get_recordset_select('sessions', 'userid = 0 AND timemodified = timecreated AND timemodified < :purgebefore', $params, 'id ASC', 'id, sid');
-            foreach ($rs as $session) {
-                self::kill_session($session->sid);
-            }
-            $rs->close();
-
-        } catch (\Exception $ex) {
-            debugging('Error gc-ing sessions: '.$ex->getMessage(), DEBUG_NORMAL, $ex->getTrace());
-        }
+        self::$handler->gc();
     }
 
     /**

@@ -78,14 +78,16 @@ function report_usersessions_format_ip($ip) {
  * @return void
  */
 function report_usersessions_kill_session($id) {
-    global $DB, $USER;
+    global $USER;
 
-    $session = $DB->get_record('sessions', array('id' => $id, 'userid' => $USER->id), 'id, sid');
+    $sessions = \core\session\manager::get_sessions_by_userid($USER->id);
+    $filteredsessions = array_filter($sessions, function($session) use ($id) {
+        return $session->id == $id;
+    });
 
-    if (!$session or $session->sid === session_id()) {
-        // Do not delete the current session!
-        return;
+    foreach ($filteredsessions as $session) {
+        if ($session->sid !== session_id()) {
+            \core\session\manager::kill_session($session->sid);
+        }
     }
-
-    \core\session\manager::kill_session($session->sid);
 }

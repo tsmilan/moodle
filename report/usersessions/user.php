@@ -42,7 +42,7 @@ if (\core\session\manager::is_loggedinas()) {
 $context = context_user::instance($USER->id);
 require_capability('report/usersessions:manageownsessions', $context);
 
-$delete = optional_param('delete', 0, PARAM_INT);
+$delete = optional_param('delete', 0, PARAM_ALPHANUMEXT);
 
 $PAGE->set_url('/report/usersessions/user.php');
 $PAGE->set_context($context);
@@ -65,15 +65,13 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('mysessions', 'report_usersessions'));
 
 $data = array();
-$sql = "SELECT id, timecreated, timemodified, firstip, lastip, sid
-          FROM {sessions}
-         WHERE userid = :userid
-      ORDER BY timemodified DESC";
-$params = array('userid' => $USER->id, 'sid' => session_id());
-
-$sessions = $DB->get_records_sql($sql, $params);
+$sessions = \core\session\manager::get_sessions_by_userid($USER->id);
+// Order records by timemodified DESC.
+usort($sessions, function($a, $b){
+    return $a->timemodified < $b->timemodified;
+});
 foreach ($sessions as $session) {
-    if ($session->sid === $params['sid']) {
+    if ($session->sid === session_id()) {
         $lastaccess = get_string('thissession', 'report_usersessions');
         $deletelink = '';
 

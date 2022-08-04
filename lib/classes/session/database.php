@@ -34,6 +34,8 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class database extends handler {
+    use \core\session\util\fallback_session_store;
+
     /** @var \stdClass $record session record */
     protected $recordid = null;
 
