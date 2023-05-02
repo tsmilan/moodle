@@ -1240,6 +1240,8 @@ function format_text_menu() {
  *      allowid     :   If true then id attributes will not be removed, even when
  *                      using htmlpurifier. Default false.
  *      blanktarget :   If true all <a> tags will have target="_blank" added unless target is explicitly specified.
+ *      draftlinks  :   Set to true when displaying read-only or frozen content to preserve draft file links
+ *                      in the output instead of replacing them with broken file links. Default false.
  * </pre>
  *
  * @staticvar array $croncache
@@ -1292,6 +1294,9 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
         $options['overflowdiv'] = false;
     }
     $options['blanktarget'] = !empty($options['blanktarget']);
+    if (!isset($options['draftlinks'])) {
+        $options['draftlinks'] = false;
+    }
 
     // Calculate best context.
     if (empty($CFG->version) or $CFG->version < 2013051400 or during_initial_install()) {
@@ -1373,7 +1378,9 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
         // this happens when developers forget to post process the text.
         // The only potential problem is that somebody might try to format
         // the text before storing into database which would be itself big bug..
-        $text = str_replace("\"$CFG->wwwroot/draftfile.php", "\"$CFG->wwwroot/brokenfile.php#", $text);
+        if (!$options['draftlinks']) {
+            $text = str_replace("\"$CFG->wwwroot/draftfile.php", "\"$CFG->wwwroot/brokenfile.php#", $text);
+        }
 
         if ($CFG->debugdeveloper) {
             if (strpos($text, '@@PLUGINFILE@@/') !== false) {

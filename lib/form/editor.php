@@ -506,7 +506,12 @@ class MoodleQuickForm_editor extends HTML_QuickForm_element implements templatab
      * @return string
      */
     public function getFrozenHtml(): string {
-        return format_text($this->get_text(), $this->getFormat()) . $this->_getPersistantData();
+        $options = (object) [
+            'overflowdiv' => true,
+            'draftlinks' => true,
+        ];
+
+        return format_text($this->get_text(), $this->getFormat(), $options) . $this->_getPersistantData();
     }
 
     /**
