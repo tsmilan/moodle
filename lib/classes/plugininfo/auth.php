@@ -82,6 +82,7 @@ class auth extends base {
             $new = implode(',', array_flip($plugins));
             add_to_config_log('auth', $CFG->auth, $new, 'core');
             set_config('auth', $new);
+            \core\session\manager::kill_sessions_for_auth_plugin($pluginname);
             // Remove stale sessions.
             \core\session\manager::gc();
             // Reset caches.
