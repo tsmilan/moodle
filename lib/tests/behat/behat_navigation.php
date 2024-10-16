@@ -1693,4 +1693,80 @@ class behat_navigation extends behat_base {
 
         $this->getSession()->executeScript($script);
     }
+
+    /**
+     * Checks if a dropdown item is active.
+     *
+     * @Then dropdown item :dropdownitem should be active
+     * @param string $dropdownitem The dropdown item name.
+     */
+    public function dropdown_item_should_be_active(string $dropdownitem): void {
+        $elementselector = "//li[contains(text(), '$dropdownitem') and @aria-selected='true']";
+        $params = [$elementselector, "xpath_element"];
+        $this->execute("behat_general::should_exist", $params);
+    }
+
+    /**
+     * Checks if a dropdown item is not active.
+     *
+     * @Then dropdown item :dropdownitem should not be active
+     * @param string $dropdownitem The dropdown item name.
+     */
+    public function dropdown_item_should_not_be_active(string $dropdownitem): void {
+        $elementselector = "//li[contains(text(), '$dropdownitem') and @aria-selected='true']";
+        $params = [$elementselector, "xpath_element"];
+        $this->execute("behat_general::should_not_exist", $params);
+    }
+
+    /**
+     * Selects the specified item from the dropdown menu.
+     *
+     * @When /^I select "([^"]*)" from the dropdown$/
+     * @param string $selecteditem THe dropdown item selected.
+     * @throws ExpectationException
+     */
+    public function i_select_from_the_dropdown(string $selecteditem): void {
+        $isdropdownvisible = $this->getSession()->getPage()->find('css', '.dropdown-menu.show');
+        if (!$isdropdownvisible) {
+            throw new ExpectationException("Dropdown menu is not visible.",  $this->getSession());
+        }
+
+        $dropdownitem = $this->getSession()->getPage()->find('xpath',
+            "//li[contains(@class, 'dropdown-item') and contains(text(), '$selecteditem')]");
+        if (!$dropdownitem) {
+            throw new ExpectationException("Dropdown item '$selecteditem' not found.",  $this->getSession());
+        }
+
+        $dropdownitem->click();
+    }
+
+    /**
+     * Updates the specified data-* attribute (e.g., data-value) of a given combobox item to a new value.
+     *
+     * @When /^I update the "([^"]*)" data attribute of the "([^"]*)" combobox item to "([^"]*)"$/
+     * @param string $attribute The data-* attribute to be updated (e.g., "value").
+     * @param string $itemtext The text of the combobox item to locate (e.g., "Grader report").
+     * @param string $newvalue The new value to set the data attribute.
+     * @throws Exception If the combobox item is not found.
+     */
+    public function i_update_the_data_attribute_from_combobox_item(
+        string $attribute,
+        string $itemtext,
+        string $newvalue
+    ): void {
+        $xpath = "//li[contains(@class, 'dropdown-item') and contains(text(), '$itemtext')]";
+        $dropdownitem = $this->getSession()->getPage()->find('xpath', $xpath);
+
+        $script = <<<JS
+            var result = document.evaluate("{$xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+            var dropdownitem = result.singleNodeValue;
+            if (dropdownitem) {
+                dropdownitem.setAttribute('data-$attribute', '$newvalue');
+            } else {
+                throw new Error("Dropdown item '$itemtext' not found.");
+            }
+        JS;
+
+        $this->getSession()->executeScript($script);
+    }
 }
