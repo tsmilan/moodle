@@ -400,6 +400,16 @@ const comboboxFix = () => {
     };
 };
 
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        const comboboxes = document.querySelectorAll('[role="combobox"]');
+        comboboxes.forEach(combobox => {
+            const inputElement = document.getElementById(combobox.dataset.inputElement);
+            inputElement.value = '';
+        });
+    }
+});
+
 /**
  * After page load, focus on any element with special autofocus attribute.
  */
