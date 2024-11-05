@@ -109,7 +109,7 @@
             </div>
             {{#js}}
                 document.querySelector('#{{baseid}}').addEventListener('change', function(e) {
-                window.location.href = e.target.value;
+                    window.location.href = e.detail.value;
                 });
             {{/js}}
         {{/importselector}}

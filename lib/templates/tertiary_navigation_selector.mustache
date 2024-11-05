@@ -78,6 +78,10 @@
 </nav>
 {{#js}}
     document.querySelector('#{{baseid}}').addEventListener('change', function(e) {
-        window.location.href = e.target.value;
+        if (e instanceof CustomEvent && e.detail) {
+            window.location.href = e.detail.value;
+        } else {
+            window.location.href = e.target.value;
+        }
     });
 {{/js}}
