@@ -98,7 +98,7 @@
             <div class="navitem-divider d-none d-sm-flex"></div>
             {{#js}}
                 document.querySelector('#{{baseid}}').addEventListener('change', function(e) {
-                    window.location.href = e.target.value;
+                    window.location.href = e.detail.value;
                 });
             {{/js}}
         {{/statusselector}}

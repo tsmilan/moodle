@@ -400,20 +400,24 @@ const comboboxFix = () => {
     };
 
     const processSelectedOption = (combobox, optionvalue) => {
-        const useInput = combobox.dataset.actiontype === 'hiddenInput';
-        const event = useInput ? new Event('change', {bubbles: true}) : new CustomEvent('change', {
-            bubbles: true, detail: {value: optionvalue}});
-        const element = useInput ? document.getElementById(combobox.dataset.inputElement) : combobox;
+        const useCustomEvent = combobox.dataset.actiontype === 'event';
+        const event = useCustomEvent ? new CustomEvent('change', {
+            bubbles: true, detail: {value: optionvalue}}) : new Event('change', {bubbles: true});
+        const element = useCustomEvent ? combobox : document.getElementById(combobox.dataset.inputElement);
 
         if (!element) {
             return;
         }
 
-        if (useInput) {
-            element.value = optionvalue;
+        if (useCustomEvent) {
+            element.dispatchEvent(event);
+            return;
         }
 
-        element.dispatchEvent(event);
+        if (element.value != optionvalue) {
+            element.value = optionvalue;
+            element.dispatchEvent(event);
+        }
     };
 };
 

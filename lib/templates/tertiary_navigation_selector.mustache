@@ -77,10 +77,11 @@
     {{>core/select_menu}}
 </nav>
 {{#js}}
-    document.addEventListener('change', function(e) {
-        const value = e.detail.value;
-        if (value) {
-            window.location.href = value;
+    document.querySelector('#{{baseid}}').addEventListener('change', function(e) {
+        if (e instanceof CustomEvent && e.detail) {
+            window.location.href = e.detail.value;
+        } else {
+            window.location.href = e.target.value;
         }
     });
 {{/js}}
