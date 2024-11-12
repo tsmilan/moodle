@@ -77,11 +77,18 @@
     {{>core/select_menu}}
 </nav>
 {{#js}}
+    // This template is used in multiple contexts and is loosely integrated with the associated PHP templates.
+    // It can be independently used by plugins via "core/tertiary_navigation_selector", so it needs to
+    // support both modern and legacy cases:
+    //
+    // 1. CustomEvent 'change':
+    //    - This custom event is triggered when the combobox uses the `actiontype="event"` approach.
+    //    - This method is designed for modern, event-driven handling, where the selected value is passed
+    //      through the event's `detail` property.
+    // 2. Standard 'change' event:
+    //    - The legacy method uses a hidden input and relies on the standard 'change' event.
+    //    - In this case, navigation is handled by directly reading the value from the target element.
     document.querySelector('#{{baseid}}').addEventListener('change', function(e) {
-        if (e instanceof CustomEvent && e.detail) {
-            window.location.href = e.detail.value;
-        } else {
-            window.location.href = e.target.value;
-        }
+        window.location.href = e instanceof CustomEvent && e.detail ? e.detail.value : e.target.value;
     });
 {{/js}}
