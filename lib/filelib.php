@@ -2336,7 +2336,9 @@ function readfile_accel($file, $mimetype, $accelerate) {
             // We do not expect any content in the buffer when we are serving files.
             $buffercontents = ob_get_clean();
             if ($buffercontents !== '') {
-                debugging('Non-empty default output handler buffer detected while serving the file {$filename}');
+                $buffercontentspreview = substr($buffercontents, 0, 20);
+                debugging("Non-empty default output handler buffer detected while serving the file {$filename}. " .
+                    "Buffer contents (first 20 chararacters): {$buffercontentspreview}", DEBUG_DEVELOPER);
             }
         } else {
             // Some handlers such as zlib output compression may have file signature buffered - flush it.
