@@ -1984,11 +1984,12 @@ class grade_item extends grade_object {
      *            'itemid' => 2
      *        ];
      * @param bool $isbulkupdate If bulk grade update is happening.
+     * @param float $deductedmark Mark deducted from final grade.
      * @return bool success
      */
     public function update_raw_grade($userid, $rawgrade = false, $source = null, $feedback = false,
             $feedbackformat = FORMAT_MOODLE, $usermodified = null, $dategraded = null, $datesubmitted=null,
-            $grade = null, array $feedbackfiles = [], $isbulkupdate = false) {
+            $grade = null, array $feedbackfiles = [], $isbulkupdate = false, $deductedmark = 0) {
         global $USER;
 
         $result = true;
@@ -2086,13 +2087,9 @@ class grade_item extends grade_object {
         }
         // end of hack alert
 
-        // Only reset the deducted mark if the grade has changed.
-        if ($grade->timemodified !== $oldgrade->timemodified) {
-            $grade->deductedmark = 0;
-        }
-
         $gradechanged = false;
         if (empty($grade->id)) {
+            $grade->deductedmark = $deductedmark;
             $result = (bool)$grade->insert($source, $isbulkupdate);
 
             // If the grade insert was successful and the final grade was not null then trigger a user_graded event.
@@ -2119,6 +2116,10 @@ class grade_item extends grade_object {
                     $grade->timemodified == $oldgrade->timemodified) {
                 // No changes.
                 return $result;
+            }
+
+            if ($gradechanged) {
+                $grade->deductedmark = $deductedmark;
             }
             $result = $grade->update($source, $isbulkupdate);
 
