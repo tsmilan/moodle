@@ -1235,4 +1235,41 @@ final class grade_item_test extends \grade_base_testcase {
         $this->expectException("moodle_exception");
         $gi2 = $gi->duplicate();
     }
+
+    /**
+     * Test that updating an existing grade with a penalty doesn't reset deductedmark to 0.
+     *
+     * @covers \grade_item::update_raw_grade
+     */
+    public function test_existing_grade_deductedmark_not_reset_on_first_call(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'student');
+
+        $gi = new \grade_item([
+            'courseid' => $course->id,
+            'itemtype' => 'mod',
+            'itemmodule' => 'assign',
+            'iteminstance' => 1,
+            'itemname' => 'Assignment 1',
+            'gradetype' => GRADE_TYPE_VALUE,
+            'grademax' => 100,
+            'grademin' => 0,
+        ]);
+        $gi->insert();
+
+        // Insert initial grade with deductedmark = 10 already applied.
+        $gi->update_raw_grade($user->id, 70, 'gradepenalty', false, FORMAT_MOODLE, null, null, null, null, [], false, 10);
+
+        // Deducted mark should be 10 after initial penalty.
+        $grade = \grade_grade::fetch(['itemid' => $gi->id, 'userid' => $user->id]);
+        $this->assertEquals(10, $grade->deductedmark);
+
+        // Simulate grade_update() first call - grade changes, $deductedmark defaults to 0.
+        $gi->update_raw_grade($user->id, 75, 'test');
+
+        // Grade should not be reset to 0 when grade is updated without explicit deductedmark.
+        $grade = \grade_grade::fetch(['itemid' => $gi->id, 'userid' => $user->id]);
+        $this->assertEquals(10, $grade->deductedmark);
+    }
 }
