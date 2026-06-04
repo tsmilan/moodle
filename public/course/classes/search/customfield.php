@@ -82,6 +82,29 @@ class customfield extends \core_search\base {
             ['modifiedfrom' => $modifiedfrom, 'contextlevel' => CONTEXT_COURSE], $fieldparam));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        $fields = course_handler::create()->get_fields();
+        if (!$fields) {
+            $fields = [];
+        }
+        [$fieldsql, $fieldparam] = $DB->get_in_or_equal(array_keys($fields), SQL_PARAMS_NAMED, 'fld', true, 0);
+
+        $sql = "SELECT COUNT(1)
+                  FROM {customfield_data} d
+                  JOIN {course} c ON c.id = d.instanceid
+                  JOIN {context} cnt ON cnt.instanceid = c.id
+                 WHERE d.timemodified >= :modifiedfrom
+                   AND cnt.contextlevel = :contextlevel
+                   AND d.fieldid $fieldsql";
+        return $DB->count_records_sql(
+            $sql,
+            array_merge(['modifiedfrom' => $modifiedfrom, 'contextlevel' => CONTEXT_COURSE], $fieldparam)
+        );
+    }
+
     /**
      * Returns the document associated with this section.
      *

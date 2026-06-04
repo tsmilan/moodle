@@ -646,6 +646,15 @@ if ($hassiteconfig) {
     $temp->add(new admin_setting_configduration('searchindextime',
             new lang_string('searchindextime', 'admin'), new lang_string('searchindextime_desc', 'admin'),
             600));
+    $temp->add(
+        new admin_setting_configtext(
+            'searchmaxparallelindexing',
+            new lang_string('searchmaxparallelindexing', 'admin'),
+            new lang_string('searchmaxparallelindexing_desc', 'admin'),
+            0,
+            PARAM_INT
+        )
+    );
     $temp->add(new admin_setting_heading('searchcoursesheading', new lang_string('searchablecourses', 'admin'), ''));
     $options = [
         0 => new lang_string('searchallavailablecourses_off', 'admin'),
