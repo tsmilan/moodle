@@ -21,13 +21,16 @@
 
     Example context (json):
     {
-        "id": "progressbar_test",
-        "width": "500"
+        "id": "1",
+        "idnumber": "progressbar_test",
+        "value": 50,
+        "message": "Loading...",
+        "error": 0
     }
 }}
-<div id="{{idnumber}}" class="progressbar_container mb-3 {{class}}" data-recordid="{{id}}">
+<div id="{{idnumber}}" class="progressbar_container mb-3 {{class}}" data-recordid="{{id}}"{{#style}} style="{{style}}"{{/style}}>
     <div class="progress">
-        <div id="{{idnumber}}_bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-value="{{value}}" aria-valuemin="0" aria-valuemax="100" style="width: {{value}}%"></div>
+        <div id="{{idnumber}}_bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="{{value}}" aria-valuemin="0" aria-valuemax="100" style="width: {{value}}%"></div>
     </div>
     <div class="d-flex">
         <div style="flex: 1 1 0; min-width: 0;">

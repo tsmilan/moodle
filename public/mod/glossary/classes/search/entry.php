@@ -65,6 +65,17 @@ class entry extends \core_search\base_mod {
         return $DB->get_recordset_sql($sql, array_merge($contextparams, [$modifiedfrom]));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        $sql = "SELECT COUNT(1)
+                  FROM {glossary_entries} ge
+                  JOIN {glossary} g ON g.id = ge.glossaryid
+                 WHERE ge.timemodified >= ?";
+        return $DB->count_records_sql($sql, [$modifiedfrom]);
+    }
+
     /**
      * Returns the documents associated with this glossary entry id.
      *

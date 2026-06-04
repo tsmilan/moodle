@@ -49,6 +49,21 @@ class search_index_task extends scheduled_task {
         if (!\core_search\manager::is_indexing_enabled()) {
             return;
         }
+
+        $maxparallel = (int) get_config('core', 'searchmaxparallelindexing');
+
+        if ($maxparallel > 0) {
+            // Parallel mode: dispatch per-area adhoc tasks up to the concurrency limit,
+            // then handle context-specific index requests in the remaining time.
+            $globalsearch = \core_search\manager::instance();
+            $globalsearch->dispatch_search_area_tasks($maxparallel);
+
+            $timelimit = get_config('core', 'searchindextime');
+            $globalsearch->process_index_requests($timelimit, new \text_progress_trace());
+            return;
+        }
+
+        // Sequential mode (default) — unchanged behaviour.
         $globalsearch = \core_search\manager::instance();
 
         // Get total indexing time limit.

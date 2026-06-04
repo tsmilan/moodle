@@ -76,7 +76,22 @@ class user extends \core_search\base {
                 throw new \coding_exception('Unexpected contextlevel: ' . $context->contextlevel);
         }
 
-        return $DB->get_recordset_select('user', $where, $params);
+        return $DB->get_recordset_sql(
+            'SELECT * FROM {user} WHERE ' . $where . ' ORDER BY timemodified ASC',
+            $params
+        );
+    }
+
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        return $DB->count_records_sql(
+            'SELECT COUNT(1)
+               FROM {user}
+              WHERE timemodified >= ? AND deleted = ? AND confirmed = ?',
+            [$modifiedfrom, 0, 1]
+        );
     }
 
     /**

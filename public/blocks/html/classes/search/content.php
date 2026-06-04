@@ -36,6 +36,35 @@ defined('MOODLE_INTERNAL') || die();
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class content extends \core_search\base_block {
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        [$restrictions, $restrictionparams] = $this->get_indexing_restrictions();
+        if ($restrictions) {
+            $restrictions = 'AND ' . $restrictions;
+        }
+
+        return $DB->count_records_sql(
+            "SELECT COUNT(1)
+               FROM {block_instances} bi
+               JOIN {context} x ON x.instanceid = bi.id AND x.contextlevel = ?
+               JOIN {context} parent ON parent.id = bi.parentcontextid
+          LEFT JOIN {course_modules} cm ON cm.id = parent.instanceid AND parent.contextlevel = ?
+               JOIN {course} c ON c.id = cm.course
+                    OR (c.id = parent.instanceid AND parent.contextlevel = ?)
+              WHERE bi.timemodified >= ?
+                    AND bi.blockname = ?
+                    AND (parent.contextlevel = ? AND (" . $DB->sql_like('bi.pagetypepattern', '?') . "
+                        OR bi.pagetypepattern IN ('site-index', 'course-*', '*')))
+                       $restrictions",
+            array_merge(
+                [CONTEXT_BLOCK, CONTEXT_MODULE, CONTEXT_COURSE,
+                    $modifiedfrom, $this->get_block_name(), CONTEXT_COURSE, 'course-view-%'],
+                $restrictionparams
+            )
+        );
+    }
 
     public function get_document($record, $options = array()) {
         // Create empty document.

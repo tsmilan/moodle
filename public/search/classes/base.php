@@ -319,6 +319,19 @@ abstract class base {
     }
 
     /**
+     * Returns the total count of indexable records for this area, or null if the area does not
+     * implement fast counting.
+     *
+     * Override in subclasses with a direct COUNT query for efficient page-load stats.
+     *
+     * @param int $modifiedfrom Only count records modified at or after this time (0 = all records).
+     * @return int|null
+     */
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        return null;
+    }
+
+    /**
      * Checks if get_document_recordset is supported for this search area.
      *
      * For many uses you can simply call get_document_recordset and see if it returns false, but
