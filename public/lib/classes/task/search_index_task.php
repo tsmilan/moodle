@@ -49,24 +49,14 @@ class search_index_task extends scheduled_task {
         if (!\core_search\manager::is_indexing_enabled()) {
             return;
         }
+
         $globalsearch = \core_search\manager::instance();
 
-        // Get total indexing time limit.
+        // Queue one adhoc task per area (deduped).
+        $globalsearch->dispatch_search_area_tasks();
+
+        // Handle context-specific index requests within the configured time limit.
         $timelimit = get_config('core', 'searchindextime');
-        $start = time();
-
-        // Do normal indexing.
-        $globalsearch->index(false, $timelimit, new \text_progress_trace());
-
-        // Do requested indexing (if any) for the rest of the time.
-        if ($timelimit != 0) {
-            $now = time();
-            $timelimit -= ($now - $start);
-            if ($timelimit <= 1) {
-                // There is hardly any time left, so don't try to do requests.
-                return;
-            }
-        }
-        $globalsearch->process_index_requests($timelimit, new \text_progress_trace());
+        $globalsearch->process_index_requests($timelimit, new \core\output\progress_trace\text_progress_trace());
     }
 }

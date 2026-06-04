@@ -77,6 +77,20 @@ class section extends \core_search\base {
               ORDER BY cs.timemodified ASC", array_merge($contextparams, [$modifiedfrom, '', '']));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        $comparetext = $DB->sql_compare_text('cs.summary', 1);
+
+        return $DB->count_records_sql("
+                SELECT COUNT(1)
+                  FROM {course_sections} cs
+                  JOIN {course} c ON c.id = cs.course
+                 WHERE cs.timemodified >= ?
+                   AND (cs.name != ? OR $comparetext != ?)", [$modifiedfrom, '', '']);
+    }
+
     /**
      * Returns the document associated with this section.
      *

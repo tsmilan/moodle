@@ -152,4 +152,74 @@ class renderer extends \plugin_renderer_base {
     public function render_index_requests_info(\stdClass $info) {
         return $this->output->render_from_template('core_search/index_requests', $info);
     }
+
+    /**
+     * Renders the indexing progress cell for a single search area.
+     *
+     * @param \stdClass $stat  From manager::get_areas_stats(), with docsource, docsindexed, docsneedindex.
+     * @return string HTML
+     */
+    public function render_area_index_progress(\stdClass $stat): string {
+        $unknown = ($stat->docsource === null);
+        $percent = null;
+        if (!$unknown) {
+            // Use floor so the bar never overstates progress (e.g. 20080/20081 shows 99%, not 100%).
+            $percent = ($stat->docsource > 0)
+                ? max(0, min(100, (int) floor(100 * $stat->docsindexed / $stat->docsource)))
+                : 0;
+        }
+        $context = [
+            'unknown'       => $unknown,
+            'percent'       => $percent,
+            'complete'      => ($percent === 100),
+            'docsource'     => $stat->docsource,
+            'docsindexed'   => $stat->docsindexed,
+            'docsneedindex' => $stat->docsneedindex,
+            'hasneedindex'  => ($stat->docsneedindex !== null && $stat->docsneedindex > 0),
+        ];
+        return $this->output->render_from_template('core_search/area_stats', $context);
+    }
+
+    /**
+     * Renders the overall indexing progress bar across all areas.
+     *
+     * @param \stdClass[] $areastats  From manager::get_areas_stats().
+     * @return string HTML
+     */
+    public function render_overall_index_progress(array $areastats): string {
+        $totalsource   = 0;
+        $totalindexed  = 0;
+        $unknownareas  = 0;
+        foreach ($areastats as $stat) {
+            if ($stat->docsource === null) {
+                $unknownareas++;
+                continue;
+            }
+            $totalsource  += $stat->docsource;
+            $totalindexed += $stat->docsindexed;
+        }
+        // Use floor so the bar never overstates progress.
+        $percent = ($totalsource > 0) ? (int) floor(100 * $totalindexed / $totalsource) : 0;
+        $percent = max(0, min(100, $percent));
+        $idnumber = 'core_search_overall_index_progress';
+        $msg = $totalindexed . ' / ' . $totalsource . ' ' . get_string('indexed', 'search');
+
+        $barhtml  = $this->output->render_from_template('core/progress_bar', [
+            'id'       => '',
+            'idnumber' => $idnumber,
+            'width'    => 500,
+            'class'    => 'search-overall-index-progress',
+            'style'    => 'max-width: none; width: 100%;',
+            'value'    => 0,
+            'error'    => 0,
+            'message'  => '',
+        ]);
+        $barhtml .= $this->output->render_progress_bar_update($idnumber, (float) $percent, $msg, '');
+
+        $context = [
+            'progressbar'  => $barhtml,
+            'unknownareas' => $unknownareas,
+        ];
+        return $this->output->render_from_template('core_search/overall_index_progress', $context);
+    }
 }

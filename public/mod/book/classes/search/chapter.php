@@ -63,6 +63,17 @@ class chapter extends \core_search\base_mod {
         return $DB->get_recordset_sql($sql, array_merge($contextparams, [$modifiedfrom]));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        $sql = "SELECT COUNT(1)
+                  FROM {book_chapters} c
+                  JOIN {book} b ON b.id = c.bookid
+                 WHERE c.timemodified >= ?";
+        return $DB->count_records_sql($sql, [$modifiedfrom]);
+    }
+
     /**
      * Returns the document for a particular chapter.
      *

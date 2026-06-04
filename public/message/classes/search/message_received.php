@@ -46,6 +46,11 @@ class message_received extends base_message {
         return $this->get_document_recordset_helper($modifiedfrom, $context, 'useridto');
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        return $this->count_documents_helper($modifiedfrom, 'useridto');
+    }
+
     /**
      * Returns the document associated with this message record.
      *

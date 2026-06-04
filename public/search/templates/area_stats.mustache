@@ -1,0 +1,64 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template core_search/area_stats
+
+    Renders indexing progress for a single search area: a mini progress bar,
+    indexed/total counts, and a "needs indexing" count when non-zero.
+
+    Context variables required for this template:
+    * unknown       - boolean, true when the source count is unavailable
+    * percent       - integer 0-100, percentage indexed (may be null when unknown)
+    * complete      - boolean, true when percent === 100 (renders green, no animation)
+    * docsource     - integer, total indexable records in source
+    * docsindexed   - integer, records currently in the index
+    * docsneedindex - integer, source records modified since last index run
+    * hasneedindex  - boolean, true when docsneedindex > 0
+
+    Example context (json):
+    {
+        "unknown": false,
+        "percent": 58,
+        "complete": false,
+        "docsource": 1000,
+        "docsindexed": 580,
+        "docsneedindex": 42,
+        "hasneedindex": true
+    }
+}}
+{{#unknown}}
+<span class="text-muted">{{#str}}countunavailable, search{{/str}}</span>
+{{/unknown}}
+{{^unknown}}
+<div class="progress search-area-index-progress mb-1" title="{{percent}}%">
+    {{#complete}}
+    <div class="progress-bar bg-success w-100" role="progressbar"
+         aria-label="{{#str}}searchindexprogress, search{{/str}} {{percent}}%"
+         aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+    {{/complete}}
+    {{^complete}}
+    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+         style="width: {{percent}}%"
+         aria-label="{{#str}}searchindexprogress, search{{/str}} {{percent}}%"
+         aria-valuenow="{{percent}}" aria-valuemin="0" aria-valuemax="100"></div>
+    {{/complete}}
+</div>
+<small>{{docsindexed}} / {{docsource}} {{#str}}indexed, search{{/str}}</small>
+{{#hasneedindex}}
+<br><small class="text-warning">+{{docsneedindex}} {{#str}}needsindexing, search{{/str}}</small>
+{{/hasneedindex}}
+{{/unknown}}

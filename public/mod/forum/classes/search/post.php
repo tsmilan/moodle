@@ -77,6 +77,18 @@ class post extends \core_search\base_mod {
         return $DB->get_recordset_sql($sql, array_merge($contextparams, [$modifiedfrom]));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        $sql = "SELECT COUNT(1)
+                  FROM {forum_posts} fp
+                  JOIN {forum_discussions} fd ON fd.id = fp.discussion
+                  JOIN {forum} f ON f.id = fd.forum
+                 WHERE fp.modified >= ?";
+        return $DB->count_records_sql($sql, [$modifiedfrom]);
+    }
+
     /**
      * Returns the document associated with this post id.
      *

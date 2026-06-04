@@ -65,6 +65,13 @@ class course extends \core_search\base {
               ORDER BY c.timemodified ASC", array_merge($contextparams, [$modifiedfrom]));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        return $DB->count_records_sql("SELECT COUNT(1) FROM {course} c WHERE c.timemodified >= ?", [$modifiedfrom]);
+    }
+
     /**
      * Returns the document associated with this course.
      *

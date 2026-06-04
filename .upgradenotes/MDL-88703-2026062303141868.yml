@@ -1,0 +1,45 @@
+issueNumber: MDL-88703
+notes:
+  core_search:
+    - message: >
+        - New adhoc task `\core\task\search_index_area_task` indexes a single
+        search area within the
+          configured time limit. It is dispatched by the scheduled `search_index_task` one task per
+          enabled area allowing areas to be indexed in parallel.
+
+        - New method `\core_search\manager::dispatch_search_area_tasks()` queues
+        one
+          `search_index_area_task` per enabled area, deduplicating so only one task per area is ever
+          pending at a time.
+
+        - New method `\core_search\manager::get_areas_stats()` returns per-area
+        document counts
+          (source, indexed, and needing indexing). Results are cached for 60 seconds via the new
+          `core_search/areastatscache` application cache.
+
+        - New method `\core_search\base::count_documents()` is an optional hook
+        for search areas to
+          return a fast COUNT of indexable records. The base implementation returns `null` (unavailable);
+          override with a direct COUNT query to populate the admin search areas progress display.
+      type: improved
+    - message: >
+        The \core\event\search_indexed event is now also fired by
+        \core\task\search_index_area_task
+
+        upon completing indexing of a single area. In the parallel scheduled
+        indexing path, this
+
+        replaces the single event previously fired by
+        \core\task\search_index_task (which called
+
+        manager::index() directly). Listeners should expect one event per area
+        per scheduled run
+
+        rather than one event for all areas combined. The event continues to
+        fire from manager::index()
+
+        and manager::index_context() when those methods are called directly
+        (e.g. via the admin UI
+
+        or CLI).
+      type: changed
