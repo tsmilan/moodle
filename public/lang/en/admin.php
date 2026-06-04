@@ -1283,7 +1283,6 @@ $string['searchindexupdated'] = 'Search engine contents have been updated';
 $string['searchindexwhendisabled'] = 'Index when disabled';
 $string['searchindexwhendisabled_desc'] = 'Allows the scheduled task to build the search index even when search is disabled. This is useful if you want to build the index before the search facility appears to students.';
 $string['searchinsettings'] = 'Search in settings';
-$string['searchlastrun'] = 'Last run (time, # docs, # records, # ignores)';
 $string['searchmanagement'] = 'Search management';
 $string['searchmanagement_desc'] = 'These options are useful when making changes on sites with very large search indexes that take a long time to rebuild.';
 $string['searchnotavailable'] = 'Search is not available';
@@ -1461,6 +1460,7 @@ $string['taskdeleteunconfirmedusers'] = 'Delete unconfirmed users';
 $string['taskeventscron'] = 'Background processing for events';
 $string['taskfiletrashcleanup'] = 'Cleanup files in trash';
 $string['taskglobalsearchindex'] = 'Global search indexing';
+$string['taskglobalsearchindexarea'] = 'Global search indexing (area)';
 $string['taskglobalsearchoptimize'] = 'Global search index optimization';
 $string['taskgradecron'] = 'Background processing for gradebook';
 $string['taskgradehistorycleanup'] = 'Background processing for cleaning grade history tables';
@@ -1677,3 +1677,6 @@ $string['importantupdates_content'] = '<p>In Moodle 5.0, Chat and Survey activit
 <p>If you wish to continue using Chat or Survey on your site, you can install them as plugins when upgrading to Moodle 5.0.</p>';
 $string['importantupdates_title'] = 'Important update about Chat and Survey activities';
 $string['igbinary322buggyversion'] = 'The php-igbinary extension installed on the site can lead to problems when running with PHP 7.2. You are recommended to either upgrade to php-igbinary 3.2.5 or later, or alternatively to upgrade to PHP 7.3 or later.';
+
+// Deprecated since Moodle 5.3.
+$string['searchlastrun'] = 'Last run (time, # docs, # records, # ignores)';

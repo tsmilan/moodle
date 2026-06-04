@@ -88,6 +88,7 @@ $string['cachedef_plugin_manager'] = 'Plugin info manager';
 $string['cachedef_presignup'] = 'Pre sign-up data for particular unregistered user';
 $string['cachedef_portfolio_add_button_portfolio_instances'] = 'Portfolio instances for portfolio_add_button class';
 $string['cachedef_postprocessedcss'] = 'Post processed CSS';
+$string['cachedef_search_area_stats'] = 'Search area document counts';
 $string['cachedef_tagindexbuilder'] = 'Search results for tagged items';
 $string['cachedef_questiondata'] = 'Question definitions';
 $string['cachedef_recommendation_favourite_course_content_items'] = 'Recommendation of course content items';

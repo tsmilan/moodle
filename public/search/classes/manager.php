@@ -1199,7 +1199,7 @@ class manager {
      * @return bool Whether there was any updated document or not.
      */
     public function index($fullindex = false, $timelimit = 0, ?\progress_trace $progress = null) {
-        global $DB, $CFG;
+        global $DB;
 
         // Cannot combine time limit with reindex.
         if ($timelimit && $fullindex) {
@@ -1234,127 +1234,20 @@ class manager {
             $stopat = self::get_current_time() + $timelimit;
         }
 
-        // Work out if we are in test mode, in which case we disable the indexing delay (because
-        // the normal pattern is to add a document and immediately index it).
-        $testmode = (PHPUNIT_TEST || defined('BEHAT_TEST')) &&
-            empty($CFG->searchindexingdelayfortestscript);
+        if ($fullindex === true) {
+            // For full index, delete any queued context index requests, as those will
+            // obviously be met by the full index.
+            $DB->delete_records('search_index_requests');
+        }
 
         foreach ($searchareas as $areaid => $searcharea) {
-
-            $progress->output('Processing area: ' . $searcharea->get_visible_name());
-
-            // Notify the engine that an area is starting.
-            $this->engine->area_index_starting($searcharea, $fullindex);
-
-            $indexingstart = (int)self::get_current_time();
-            $elapsed = self::get_current_time();
-
-            // This is used to store this component config.
-            list($componentconfigname, $varname) = $searcharea->get_config_var_name();
-
-            $prevtimestart = intval(get_config($componentconfigname, $varname . '_indexingstart'));
-
-            // The effective start time of previous indexing was some seconds earlier because we
-            // only index data up to that time, to avoid race conditions (if it takes a while to
-            // write a document to the database and the timecreated for that document ends up being
-            // a second or two out of date). This mechanism is disabled for tests.
-            if (!$testmode) {
-                // The -1 here is because for example, if _indexingstart is 123, we will have
-                // indexed everything up to 123 - 5 = 118 (inclusive). So next time, we can start
-                // at 119 = 123 - 4 and we don't have to repeat 118.
-                $prevtimestart -= (self::INDEXING_DELAY - 1);
-            }
-
-            if ($fullindex === true) {
-                $referencestarttime = 0;
-
-                // For full index, we delete any queued context index requests, as those will
-                // obviously be met by the full index.
-                $DB->delete_records('search_index_requests');
-            } else {
-                $partial = get_config($componentconfigname, $varname . '_partial');
-                if ($partial) {
-                    // When the previous index did not complete all data, we start from the time of the
-                    // last document that was successfully indexed. (Note this will result in
-                    // re-indexing that one document, but we can't avoid that because there may be
-                    // other documents in the same second.)
-                    $referencestarttime = intval(get_config($componentconfigname, $varname . '_lastindexrun'));
-                } else {
-                    $referencestarttime = $prevtimestart;
-                }
-            }
-
-            // Getting the recordset from the area.
-            $recordset = $searcharea->get_recordset_by_timestamp($referencestarttime);
-            $initialquerytime = self::get_current_time() - $elapsed;
-            if ($initialquerytime > self::DISPLAY_LONG_QUERY_TIME) {
-                $progress->output('Initial query took ' . round($initialquerytime, 1) .
-                        ' seconds.', 1);
-            }
-
-            // Pass get_document as callback.
-            $fileindexing = $this->engine->file_indexing_enabled() && $searcharea->uses_file_indexing();
-            $options = array('indexfiles' => $fileindexing, 'lastindexedtime' => $prevtimestart);
-            if ($timelimit) {
-                $options['stopat'] = $stopat;
-            }
-            $options['progress'] = $progress;
-            // Skip 'future' documents, also any written very recently (to avoid race conditions).
-            // The exception is for PHPunit and Behat (step 'I update the global search index')
-            // where we allow it to index recent documents as well, we don't want it to have to wait.
-            $iterator = new skip_future_documents_iterator(
-                new \core\dml\recordset_walk($recordset, [$searcharea, 'get_document'], $options),
-                $indexingstart - ($testmode ? 0 : self::INDEXING_DELAY),
+            $result = $this->index_area(
+                $areaid,
+                $timelimit ? max(1, (int)($stopat - self::get_current_time())) : 0,
+                $progress,
+                $fullindex
             );
-            $result = $this->engine->add_documents($iterator, $searcharea, $options);
-            $recordset->close();
-            $batchinfo = '';
-            if (count($result) === 6) {
-                [$numrecords, $numdocs, $numdocsignored, $lastindexeddoc, $partial, $batches] = $result;
-                // Only show the batch count if we actually batched any requests.
-                if ($batches !== $numdocs + $numdocsignored) {
-                    $batchinfo = ' (' . $batches . ' batch' . ($batches === 1 ? '' : 'es') . ')';
-                }
-            } else {
-                throw new \coding_exception('engine::add_documents() should return 6 values');
-            }
-
-            if ($numdocs > 0) {
-                $elapsed = round((self::get_current_time() - $elapsed), 1);
-
-                $partialtext = '';
-                if ($partial) {
-                    $partialtext = ' (not complete; done to ' . userdate($lastindexeddoc,
-                            get_string('strftimedatetimeshort', 'langconfig')) . ')';
-                }
-
-                $progress->output('Processed ' . $numrecords . ' records containing ' . $numdocs .
-                        ' documents' . $batchinfo . ', in ' . $elapsed . ' seconds' . $partialtext . '.', 1);
-            } else {
-                $progress->output('No new documents to index.', 1);
-            }
-
-            // Notify the engine this area is complete, and only mark times if true.
-            if ($this->engine->area_index_complete($searcharea, $numdocs, $fullindex)) {
-                $sumdocs += $numdocs;
-
-                // Store last index run once documents have been committed to the search engine.
-                set_config($varname . '_indexingstart', $indexingstart, $componentconfigname);
-                set_config($varname . '_indexingend', (int)self::get_current_time(), $componentconfigname);
-                set_config($varname . '_docsignored', $numdocsignored, $componentconfigname);
-                set_config($varname . '_docsprocessed', $numdocs, $componentconfigname);
-                set_config($varname . '_recordsprocessed', $numrecords, $componentconfigname);
-                if ($lastindexeddoc > 0) {
-                    set_config($varname . '_lastindexrun', $lastindexeddoc, $componentconfigname);
-                }
-                if ($partial) {
-                    set_config($varname . '_partial', 1, $componentconfigname);
-                } else {
-                    unset_config($varname . '_partial', $componentconfigname);
-                }
-            } else {
-                $progress->output('Engine reported error.');
-            }
+            $sumdocs += $result->indexed;
 
             if ($timelimit && (self::get_current_time() >= $stopat)) {
                 $progress->output('Stopping indexing due to time limit.');
@@ -1363,14 +1256,183 @@ class manager {
         }
 
         if ($sumdocs > 0) {
-            $event = \core\event\search_indexed::create(
-                    array('context' => \context_system::instance()));
+            $event = \core\event\search_indexed::create(['context' => \context_system::instance()]);
             $event->trigger();
         }
 
         $this->engine->index_complete($sumdocs, $fullindex);
 
         return (bool)$sumdocs;
+    }
+
+    /**
+     * Indexes a single search area incrementally.
+     *
+     * Handles all per-area state: reads _lastindexrun / _partial config values, calls the
+     * engine area lifecycle hooks, and writes state back on completion. This is the same
+     * logic as the per-area loop body in index(), factored out so that adhoc tasks can
+     * index areas in parallel without running the full index() loop.
+     *
+     * @param string $areaid The search area ID to index.
+     * @param int $timelimit Time limit in seconds (0 = no limit).
+     * @param \core\output\progress_trace|null $progress Optional progress output.
+     * @param bool $fullindex If true, re-index from the beginning (ignores _lastindexrun).
+     * @return \stdClass Object with fields: bool $partial, int $indexed (docs added to index).
+     */
+    public function index_area(
+        string $areaid,
+        int $timelimit = 0,
+        ?\core\output\progress_trace $progress = null,
+        bool $fullindex = false
+    ): \stdClass {
+        global $CFG;
+
+        if (!$progress) {
+            $progress = new \core\output\progress_trace\null_progress_trace();
+        }
+
+        $searcharea = $this->get_search_area($areaid);
+        if (!$searcharea) {
+            throw new \coding_exception('Unknown search area: ' . $areaid);
+        }
+
+        \core_php_time_limit::raise();
+
+        // Work out if we are in test mode, in which case we disable the indexing delay (because
+        // the normal pattern is to add a document and immediately index it).
+        $testmode = (PHPUNIT_TEST || defined('BEHAT_TEST')) &&
+            empty($CFG->searchindexingdelayfortestscript);
+
+        $stopat = $timelimit ? self::get_current_time() + $timelimit : null;
+
+        $progress->output('Processing area: ' . $searcharea->get_visible_name());
+
+        // Notify the engine that an area is starting.
+        $this->engine->area_index_starting($searcharea, $fullindex);
+
+        $indexingstart = (int)self::get_current_time();
+        $elapsed = self::get_current_time();
+
+        // This is used to store this component config.
+        [$componentconfigname, $varname] = $searcharea->get_config_var_name();
+
+        $prevtimestart = intval(get_config($componentconfigname, $varname . '_indexingstart'));
+
+        // The effective start time of previous indexing was some seconds earlier because we
+        // only index data up to that time, to avoid race conditions (if it takes a while to
+        // write a document to the database and the timecreated for that document ends up being
+        // a second or two out of date). This mechanism is disabled for tests.
+        if (!$testmode) {
+            // The -1 here is because for example, if _indexingstart is 123, we will have
+            // indexed everything up to 123 - 5 = 118 (inclusive). So next time, we can start
+            // at 119 = 123 - 4 and we don't have to repeat 118.
+            $prevtimestart -= (self::INDEXING_DELAY - 1);
+        }
+
+        if ($fullindex === true) {
+            $referencestarttime = 0;
+        } else {
+            $partial = get_config($componentconfigname, $varname . '_partial');
+            if ($partial) {
+                // When the previous index did not complete all data, we start from the time of the
+                // last document that was successfully indexed. (Note this will result in
+                // re-indexing that one document, but we can't avoid that because there may be
+                // other documents in the same second.)
+                $referencestarttime = intval(get_config($componentconfigname, $varname . '_lastindexrun'));
+            } else {
+                $referencestarttime = $prevtimestart;
+            }
+        }
+
+        // Getting the recordset from the area.
+        $recordset = $searcharea->get_recordset_by_timestamp($referencestarttime);
+        $initialquerytime = self::get_current_time() - $elapsed;
+        if ($initialquerytime > self::DISPLAY_LONG_QUERY_TIME) {
+            $progress->output('Initial query took ' . round($initialquerytime, 1) .
+                    ' seconds.', 1);
+        }
+
+        // Pass get_document as callback.
+        $fileindexing = $this->engine->file_indexing_enabled() && $searcharea->uses_file_indexing();
+        $options = ['indexfiles' => $fileindexing, 'lastindexedtime' => $prevtimestart];
+        if ($stopat !== null) {
+            $options['stopat'] = $stopat;
+        }
+        $options['progress'] = $progress;
+        // Skip 'future' documents, also any written very recently (to avoid race conditions).
+        // The exception is for PHPunit and Behat (step 'I update the global search index')
+        // where we allow it to index recent documents as well, we don't want it to have to wait.
+        $iterator = new skip_future_documents_iterator(
+            new \core\dml\recordset_walk($recordset, [$searcharea, 'get_document'], $options),
+            $indexingstart - ($testmode ? 0 : self::INDEXING_DELAY),
+        );
+        $result = $this->engine->add_documents($iterator, $searcharea, $options);
+        $recordset->close();
+        $batchinfo = '';
+        if (count($result) === 6) {
+            [$numrecords, $numdocs, $numdocsignored, $lastindexeddoc, $partial, $batches] = $result;
+            // Only show the batch count if we actually batched any requests.
+            if ($batches !== $numdocs + $numdocsignored) {
+                $batchinfo = ' (' . $batches . ' batch' . ($batches === 1 ? '' : 'es') . ')';
+            }
+        } else {
+            throw new \coding_exception('engine::add_documents() should return 6 values');
+        }
+
+        if ($numdocs > 0) {
+            $elapsed = round((self::get_current_time() - $elapsed), 1);
+
+            $partialtext = '';
+            if ($partial) {
+                $partialtext = ' (not complete; done to ' .
+                    userdate($lastindexeddoc, get_string('strftimedatetimeshort', 'langconfig')) . ')';
+            }
+
+            $progress->output('Processed ' . $numrecords . ' records containing ' . $numdocs .
+                    ' documents' . $batchinfo . ', in ' . $elapsed . ' seconds' . $partialtext . '.', 1);
+        } else {
+            $progress->output('No new documents to index.', 1);
+        }
+
+        $indexed = 0;
+        // Notify the engine this area is complete, and only mark times if true.
+        if ($this->engine->area_index_complete($searcharea, $numdocs, $fullindex)) {
+            $indexed = $numdocs;
+
+            // Store last index run once documents have been committed to the search engine.
+            set_config($varname . '_indexingstart', $indexingstart, $componentconfigname);
+            set_config($varname . '_indexingend', (int)self::get_current_time(), $componentconfigname);
+            set_config($varname . '_docsignored', $numdocsignored, $componentconfigname);
+            set_config($varname . '_docsprocessed', $numdocs, $componentconfigname);
+            set_config($varname . '_recordsprocessed', $numrecords, $componentconfigname);
+            if ($lastindexeddoc > 0) {
+                set_config($varname . '_lastindexrun', $lastindexeddoc, $componentconfigname);
+            }
+            if ($partial) {
+                set_config($varname . '_partial', 1, $componentconfigname);
+            } else {
+                unset_config($varname . '_partial', $componentconfigname);
+            }
+        } else {
+            $progress->output('Engine reported error.');
+        }
+
+        $return = new \stdClass();
+        $return->partial = (bool) $partial;
+        $return->indexed = $indexed;
+        return $return;
+    }
+
+    /**
+     * Queues a search_index_area_task adhoc task for each enabled search area.
+     * @return void
+     */
+    public function dispatch_search_area_tasks(): void {
+        foreach (array_keys($this->get_search_areas_list(true)) as $areaid) {
+            $task = new \core\task\search_index_area_task();
+            $task->set_custom_data(['areaid' => $areaid]);
+            \core\task\manager::queue_adhoc_task($task, true); // No-op if already queued.
+        }
     }
 
     /**
@@ -1616,6 +1678,70 @@ class manager {
     }
 
     /**
+     * Returns indexing stats for each area, suitable for displaying progress bars.
+     *
+     * Counts are derived entirely from Moodle's own source data and the per-area
+     * _lastindexrun config timestamp — no search engine queries are made.
+     *
+     * Each returned stdClass has:
+     *   ->docsource       int|null  Total indexable records in source (null if area doesn't support counting)
+     *   ->docsindexed     int|null  Records considered indexed (docsource - docsneedindex; null if docsource is null)
+     *   ->docsneedindex   int|null  Source records modified since last index run (null if docsource is null)
+     *
+     * Stats are returned for all areas regardless of enabled status, so disabled areas still show
+     * their source count (useful before enabling them).
+     *
+     * Results are cached per area for 60 seconds to avoid repeated COUNT queries on large tables.
+     *
+     * @param \core_search\base[] $searchareas
+     * @return \stdClass[] Keyed by areaid
+     */
+    public function get_areas_stats(array $searchareas): array {
+        $cache = \cache::make('core', 'search_area_stats');
+        $stats = [];
+        foreach ($searchareas as $area) {
+            $areaid = $area->get_area_id();
+
+            $cached = $cache->get($areaid);
+            if ($cached !== false) {
+                $stats[$areaid] = $cached;
+                continue;
+            }
+
+            [$componentname, $varname] = $area->get_config_var_name();
+            $lastindexrun = (int) get_config($componentname, $varname . '_lastindexrun');
+
+            $stat = new \stdClass();
+            $stat->lastindexrun = $lastindexrun;
+            $stat->docsource = $area->count_documents(0);
+
+            if ($stat->docsource !== null) {
+                $partial = (bool) get_config($componentname, $varname . '_partial');
+                // The _lastindexrun stores the timemodified of the last document successfully indexed.
+                // count_documents($t) counts source records with timemodified >= $t, so we use
+                // $lastindexrun + 1 to exclude that boundary document (already indexed, not stale).
+                //
+                // When _partial is set, the indexer hit its time limit before finishing the area.
+                // Multiple source records can share the same timemodified second, so there may be
+                // unindexed records at exactly $lastindexrun. Using $lastindexrun (no +1) includes
+                // them in docsneedindex — this overcounts by the one already-indexed boundary
+                // document, but that is preferable to silently showing the area as fully indexed.
+                $stat->docsneedindex = ($lastindexrun > 0)
+                    ? $area->count_documents($partial ? $lastindexrun : $lastindexrun + 1)
+                    : $stat->docsource;
+                $stat->docsindexed = $stat->docsource - $stat->docsneedindex;
+            } else {
+                $stat->docsneedindex = null;
+                $stat->docsindexed = null;
+            }
+
+            $cache->set($areaid, $stat);
+            $stats[$areaid] = $stat;
+        }
+        return $stats;
+    }
+
+    /**
      * Triggers search_results_viewed event
      *
      * Other data required:
@@ -1715,11 +1841,11 @@ class manager {
      * @param float $timelimit Time limit (0 = none)
      * @param \progress_trace|null $progress Optional progress indicator
      */
-    public function process_index_requests($timelimit = 0.0, ?\progress_trace $progress = null) {
+    public function process_index_requests($timelimit = 0.0, ?\core\output\progress_trace $progress = null) {
         global $DB;
 
         if (!$progress) {
-            $progress = new \null_progress_trace();
+            $progress = new \core\output\progress_trace\null_progress_trace();
         }
 
         $before = self::get_current_time();

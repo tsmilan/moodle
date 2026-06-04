@@ -198,6 +198,40 @@ abstract class base_message extends \core_search\base {
     }
 
     /**
+     * Helper to count indexable message records for a given user field direction.
+     *
+     * Mirrors the SQL in get_document_recordset_helper() with COUNT(1), using the system
+     * context (no per-user restriction) so the result represents the full site-wide total.
+     *
+     * @param int $modifiedfrom Only count messages with timecreated >= this value.
+     * @param string $userfield 'useridfrom' (sent) or 'useridto' (received).
+     * @return int
+     */
+    protected function count_documents_helper(int $modifiedfrom, string $userfield): int {
+        global $DB;
+
+        $qualifiedfield = ($userfield === 'useridto') ? 'mcm.userid' : 'm.useridfrom';
+
+        return (int) $DB->count_records_sql(
+            "SELECT COUNT(1)
+               FROM {messages} m
+               JOIN {message_conversations} mc
+                 ON m.conversationid = mc.id
+               JOIN {message_conversation_members} mcm
+                 ON mcm.conversationid = mc.id
+              WHERE mcm.userid != m.useridfrom
+                AND $qualifiedfield != :noreplyuser
+                AND $qualifiedfield != :supportuser
+                AND m.timecreated >= :modifiedfrom",
+            [
+                'noreplyuser' => \core_user::NOREPLY_USER,
+                'supportuser' => \core_user::SUPPORT_USER,
+                'modifiedfrom' => $modifiedfrom,
+            ]
+        );
+    }
+
+    /**
      * Returns an icon instance for the document.
      *
      * @param \core_search\document $doc

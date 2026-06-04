@@ -99,6 +99,38 @@ class course_teacher extends \core_search\base {
         return $recordset;
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+        $teacherroleids = get_config('core', 'searchteacherroles');
+
+        if (!empty($teacherroleids)) {
+            $teacherroleids = explode(',', $teacherroleids);
+            [$insql, $inparams] = $DB->get_in_or_equal($teacherroleids, SQL_PARAMS_NAMED);
+        } else {
+            [$insql, $inparams] = [' = :roleid', ['roleid' => 0]];
+        }
+
+        $params = [
+            'coursecontext' => CONTEXT_COURSE,
+            'modifiedfrom' => $modifiedfrom,
+        ];
+
+        $params = array_merge($params, $inparams);
+
+        return $DB->count_records_sql("
+            SELECT COUNT(1)
+              FROM {role_assignments} ra
+              JOIN {context} ctx
+                ON ctx.id = ra.contextid
+               AND ctx.contextlevel = :coursecontext
+              JOIN {user} u
+                ON u.id = ra.userid
+              JOIN {role} r
+                ON r.id = ra.roleid
+             WHERE ra.timemodified >= :modifiedfrom AND r.id $insql", $params);
+    }
+
     /**
      * Returns document instances for each record in the recordset.
      *

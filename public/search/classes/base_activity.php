@@ -77,6 +77,17 @@ abstract class base_activity extends base_mod {
                 array_merge($contextparams, [$modifiedfrom]));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        return $DB->count_records_sql(
+            'SELECT COUNT(1) FROM {' . $this->get_module_name() . '} modtable ' .
+            'WHERE modtable.' . static::MODIFIED_FIELD_NAME . ' >= ?',
+            [$modifiedfrom]
+        );
+    }
+
     /**
      * Returns the document associated with this activity.
      *

@@ -70,6 +70,17 @@ class entry extends \core_search\base_mod {
                 array_merge($contextparams, ['timemodified' => $modifiedfrom]));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        $sql = "SELECT COUNT(1)
+                  FROM {data_records} dr
+                  JOIN {data} d ON d.id = dr.dataid
+                 WHERE dr.timemodified >= :timemodified";
+        return $DB->count_records_sql($sql, ['timemodified' => $modifiedfrom]);
+    }
+
     /**
      * Returns the documents associated with this glossary entry id.
      *

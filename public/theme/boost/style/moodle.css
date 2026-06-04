@@ -35143,6 +35143,10 @@ body.path-question-type .mform fieldset.hidden {
   text-indent: 0;
 }
 
+.search-area-index-progress {
+  height: 6px;
+}
+
 /**
  * Moodle forms HTML isn't changeable via renderers (yet?) so this
  * .less file imports styles from the bootstrap $variables file and

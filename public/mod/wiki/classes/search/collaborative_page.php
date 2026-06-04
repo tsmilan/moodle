@@ -69,6 +69,19 @@ class collaborative_page extends \core_search\base_mod {
                 [$modifiedfrom, 'collaborative']));
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        global $DB;
+
+        $sql = "SELECT COUNT(1)
+                  FROM {wiki_pages} p
+                  JOIN {wiki_subwikis} s ON s.id = p.subwikiid
+                  JOIN {wiki} w ON w.id = s.wikiid
+                 WHERE p.timemodified >= ?
+                   AND w.wikimode = ?";
+        return $DB->count_records_sql($sql, [$modifiedfrom, 'collaborative']);
+    }
+
     /**
      * Returns the document for a particular page.
      *

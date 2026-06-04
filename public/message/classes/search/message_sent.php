@@ -45,6 +45,11 @@ class message_sent extends base_message {
         return $this->get_document_recordset_helper($modifiedfrom, $context, 'useridfrom');
     }
 
+    #[\Override]
+    public function count_documents(int $modifiedfrom = 0): ?int {
+        return $this->count_documents_helper($modifiedfrom, 'useridfrom');
+    }
+
     /**
      * Returns the document associated with this message record.
      *

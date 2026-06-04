@@ -625,6 +625,14 @@ $definitions = array(
         'staticacceleration' => true,
     ],
 
+    // Short-lived cache for search area document counts (used on the admin search areas page).
+    // Each entry holds the stats stdClass for one area, keyed by areaid.
+    // TTL of 60 seconds prevents repeated COUNT queries on large tables on every page load.
+    'search_area_stats' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'ttl' => 60,
+    ],
+
     // The navigation_cache class used this cache to store the navigation nodes.
     'navigation_cache' => [
         'mode' => cache_store::MODE_SESSION,

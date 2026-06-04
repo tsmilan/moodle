@@ -151,23 +151,32 @@ if (isset($searchmanager) && $indexingenabled) {
 
 echo $OUTPUT->header();
 
+$searchareas = \core_search\manager::get_search_areas_list();
+core_collator::asort_objects_by_method($searchareas, 'get_visible_name');
+
+// Gather indexing stats (source counts + index counts) for all areas, enabled or not.
+$areastats = (isset($searchmanager) && $indexingenabled) ? $searchmanager->get_areas_stats($searchareas) : false;
+
+// Overall progress bar.
+if ($areastats) {
+    $searchrenderer = $PAGE->get_renderer('core_search');
+    echo $searchrenderer->render_overall_index_progress($areastats);
+}
+
 $table = new html_table();
 $table->id = 'core-search-areas';
 $table->head = [
     get_string('searcharea', 'search'),
     get_string('searchareacategories', 'search'),
     get_string('enable'),
+    get_string('searchindexprogress', 'search'),
     get_string('newestdocindexed', 'admin'),
-    get_string('searchlastrun', 'admin'),
-    get_string('searchindexactions', 'admin')
+    get_string('searchindexactions', 'admin'),
 ];
 
-$searchareas = \core_search\manager::get_search_areas_list();
-core_collator::asort_objects_by_method($searchareas, 'get_visible_name');
-$areasconfig = isset($searchmanager) ? $searchmanager->get_areas_config($searchareas) : false;
 foreach ($searchareas as $area) {
     $areaid = $area->get_area_id();
-    $columns = array(new html_table_cell($area->get_visible_name()));
+    $columns = [new html_table_cell($area->get_visible_name())];
 
     $areacategories = [];
     foreach (\core_search\manager::get_search_area_categories() as $category) {
@@ -178,40 +187,42 @@ foreach ($searchareas as $area) {
     $columns[] = new html_table_cell(implode(', ', $areacategories));
 
     if ($area->is_enabled()) {
-        $columns[] = $OUTPUT->action_icon(admin_searcharea_action_url('disable', $areaid),
-            new pix_icon('t/hide', get_string('disable'), 'moodle', array('title' => '', 'class' => 'iconsmall')),
-            null, array('title' => get_string('disable')));
+        $columns[] = $OUTPUT->action_icon(
+            admin_searcharea_action_url('disable', $areaid),
+            new pix_icon('t/hide', get_string('disable'), 'moodle', ['title' => '', 'class' => 'iconsmall']),
+            null,
+            ['title' => get_string('disable')]
+        );
 
-        if ($areasconfig && $indexingenabled) {
-            $columns[] = $areasconfig[$areaid]->lastindexrun;
+        if ($areastats && $indexingenabled) {
+            // Progress cell.
+            $searchrenderer = $PAGE->get_renderer('core_search');
+            $columns[] = new html_table_cell($searchrenderer->render_area_index_progress($areastats[$areaid]));
 
-            if ($areasconfig[$areaid]->indexingstart) {
-                $timediff = $areasconfig[$areaid]->indexingend - $areasconfig[$areaid]->indexingstart;
-                $laststatus = $timediff . ' , ' .
-                    $areasconfig[$areaid]->docsprocessed . ' , ' .
-                    $areasconfig[$areaid]->recordsprocessed . ' , ' .
-                    $areasconfig[$areaid]->docsignored;
-                if ($areasconfig[$areaid]->partial) {
-                    $laststatus .= ' ' . get_string('searchpartial', 'admin');
-                }
-            } else {
-                $laststatus = '';
-            }
-            $columns[] = $laststatus;
+            // Newest document indexed cell.
+            $lastindexrun = $areastats[$areaid]->lastindexrun;
+            $columns[] = new html_table_cell($lastindexrun
+                ? userdate($lastindexrun)
+                : get_string('never', 'admin'));
+
+            // Actions cell.
             $accesshide = html_writer::span($area->get_visible_name(), 'accesshide');
             $actions = [];
             $actions[] = $OUTPUT->pix_icon('t/delete', '') .
-                    html_writer::link(admin_searcharea_action_url('delete', $areaid),
-                    get_string('deleteindex', 'search', $accesshide));
+                html_writer::link(
+                    admin_searcharea_action_url('delete', $areaid),
+                    get_string('deleteindex', 'search', $accesshide)
+                );
             if ($area->supports_get_document_recordset()) {
                 $actions[] = $OUTPUT->pix_icon('i/reload', '') . html_writer::link(
-                        new moodle_url('searchreindex.php', ['areaid' => $areaid]),
-                        get_string('gradualreindex', 'search', $accesshide));
+                    new moodle_url('searchreindex.php', ['areaid' => $areaid]),
+                    get_string('gradualreindex', 'search', $accesshide)
+                );
             }
             $columns[] = html_writer::alist($actions, ['class' => 'unstyled list-unstyled']);
 
         } else {
-            if (!$areasconfig) {
+            if (!$areastats) {
                 $blankrow = new html_table_cell(get_string('searchnotavailable', 'admin'));
             } else {
                 $blankrow = new html_table_cell(get_string('indexwhendisabledshortnotice', 'search'));
@@ -221,13 +232,34 @@ foreach ($searchareas as $area) {
         }
 
     } else {
-        $columns[] = $OUTPUT->action_icon(admin_searcharea_action_url('enable', $areaid),
-            new pix_icon('t/show', get_string('enable'), 'moodle', array('title' => '', 'class' => 'iconsmall')),
-                null, array('title' => get_string('enable')));
+        $columns[] = $OUTPUT->action_icon(
+            admin_searcharea_action_url('enable', $areaid),
+            new pix_icon('t/show', get_string('enable'), 'moodle', ['title' => '', 'class' => 'iconsmall']),
+            null,
+            ['title' => get_string('enable')]
+        );
 
-        $blankrow = new html_table_cell(get_string('searchareadisabled', 'admin'));
-        $blankrow->colspan = 3;
-        $columns[] = $blankrow;
+        // For disabled areas, still show source count so admins know what they're enabling.
+        if ($areastats) {
+            if (!isset($searchrenderer)) {
+                $searchrenderer = $PAGE->get_renderer('core_search');
+            }
+            $columns[] = new html_table_cell($searchrenderer->render_area_index_progress($areastats[$areaid]));
+
+            // Newest document indexed cell (disabled areas may still have been indexed previously).
+            $lastindexrun = $areastats[$areaid]->lastindexrun;
+            $columns[] = new html_table_cell($lastindexrun
+                ? userdate($lastindexrun)
+                : get_string('never', 'admin'));
+        } else {
+            $blankrow = new html_table_cell(get_string('searchareadisabled', 'admin'));
+            $blankrow->colspan = 3;
+            $columns[] = $blankrow;
+        }
+        // No actions for disabled areas.
+        if ($areastats) {
+            $columns[] = new html_table_cell('');
+        }
     }
     $row = new html_table_row($columns);
     $table->data[] = $row;
@@ -259,7 +291,7 @@ echo $OUTPUT->footer();
  * @return moodle_url
  */
 function admin_searcharea_action_url($action, $areaid = false) {
-    $params = array('action' => $action);
+    $params = ['action' => $action];
     if ($areaid) {
         $params['areaid'] = $areaid;
     }
