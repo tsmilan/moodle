@@ -1,0 +1,9 @@
+issueNumber: MDL-86394
+notes:
+  core_grades:
+    - message: >
+        Added a new hook to allow plugins to perform actions after a grade
+        category aggregation is calculated.
+        It can be used to compute alternate totals (e.g. preview a course total
+        without grade penalties) without mutating core database records.
+      type: improved
